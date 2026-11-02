@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        typst: ["0.12.0", "0.15.1"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install typst ${{ matrix.typst }}
+        run: |
+          curl -sSL "https://github.com/typst/typst/releases/download/v${{ matrix.typst }}/typst-x86_64-unknown-linux-musl.tar.xz" | tar -xJ
+          echo "$PWD/typst-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: typst --version
+      - run: typst compile --root . tests/test.typ
+      - run: typst compile --root . examples/example.typ
+      - name: Data is the output of scripts/generate.py
+        run: |
+          git clone --depth 1 https://github.com/eorscope/employer-costs /tmp/employer-costs
+          python3 scripts/generate.py /tmp/employer-costs
+          git diff --exit-code -- data/
