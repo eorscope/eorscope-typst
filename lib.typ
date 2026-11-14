@@ -29,6 +29,20 @@
 /// not a total: its rate must be read and printed as "at least".
 #let rate-is-floor(iso) = country(iso).total_declared_floor
 
+// The word eorscope.com prints before the cost at a gross annual salary in local
+// currency: "at least " for a declared floor, or above the threshold of a
+// salary-dependent floor (ES: solidarity contribution above the maximum base,
+// not modelled); "at most " below the threshold of a salary-dependent ceiling
+// (FR: RGDU relief under 3 x SMIC, not modelled); "" otherwise and at the
+// threshold itself.
+#let _bound-word(c, gross-local) = {
+  let t = c.at("total_bound_salary_threshold_local", default: none)
+  let rule = c.at("total_bound_salary_rule", default: none)
+  if c.total_declared_floor or (rule == "at_least_above" and gross-local > t) { "at least " } else if (
+    rule == "at_most_below" and gross-local < t
+  ) { "at most " } else { "" }
+}
+
 // Fixed-point string of v, rounded half away from zero on the shortest decimal
 // that round-trips to v (as eorscope.com prints it): 32.15 gives "32.2".
 #let _fixed(v, digits) = {
@@ -147,7 +161,8 @@
     total: gross-local + cost-local,
     cost-usd: cost-usd,
     rate: if gross-usd > 0 { cost-usd / gross-usd } else { 0.0 },
-    rate-is-floor: c.total_declared_floor,
+    rate-is-floor: _bound-word(c, gross-local) == "at least ",
+    rate-is-ceiling: _bound-word(c, gross-local) == "at most ",
     base-is-ceiling: c.total_declared_ceiling,
     lines: lines,
   )
@@ -157,7 +172,9 @@
 /// Returns a dictionary: `salary`, `cost` (employer contributions plus the
 /// statutory extras counted in the total, per year, local currency), `total`
 /// (salary + cost), `rate` (cost / salary, 0.2225 = 22.25 %), `rate-is-floor`
-/// (read `cost` and `rate` as "at least"), `base-is-ceiling` and `lines`.
+/// (read `cost` and `rate` as "at least": a declared floor, or ES above its
+/// maximum base), `rate-is-ceiling` (read them as "at most": FR under 3 x SMIC),
+/// `base-is-ceiling` and `lines`.
 #let employer-cost(iso, salary) = {
   let c = country(iso)
   let gross = float(salary)
@@ -172,8 +189,10 @@
   if salary == none { country(iso).employer_cost_pct / 100 } else { employer-cost(iso, salary).rate }
 }
 
-/// Rate as text, with "at least" for countries that publish a floor:
-/// "22.3%" for DE, "at least 3.8%" for IN, "30%" for AT.
+/// Rate as text, with "at least" for countries that publish a floor and "at
+/// most" or "at least" where the salary falls in a salary-dependent bound:
+/// "22.3%" for DE, "at least 3.8%" for IN, "30%" for AT. Without `salary`, the
+/// bound is read at the example salary.
 #let employer-rate-text(iso, salary: none, digits: 1) = {
   let c = country(iso)
   let p = if salary == none and digits == 1 { c.employer_cost_pct_printed } else {
@@ -181,14 +200,15 @@
   }
   // Trailing zeros dropped, as on eorscope.com: 30.0 prints "30".
   if p.contains(".") { p = p.trim("0", at: end).trim(".", at: end) }
-  (if c.total_declared_floor { "at least " } else { "" }) + p + "%"
+  let gross = if salary == none { c.example_salary_usd * c.fx_local_per_usd } else { float(salary) }
+  _bound-word(c, gross) + p + "%"
 }
 
 /// Ledger of the employer cost at a gross annual salary in local currency:
 /// one row per contribution and statutory extra, then the total.
 #let employer-cost-table(iso, salary, digits: 2) = {
   let r = employer-cost(iso, salary)
-  let floor = if r.rate-is-floor { "at least " } else { "" }
+  let floor = if r.rate-is-floor { "at least " } else if r.rate-is-ceiling { "at most " } else { "" }
   let rows = r.lines.map(l => (
     l.name,
     if l.skipped { emph(l.note) } else if l.capped { [#format-amount(l.amount, digits: digits) (capped)] } else { format-amount(l.amount, digits: digits) },
@@ -208,7 +228,8 @@
 }
 
 /// Published employer cost by country, at each country's example salary,
-/// with "at least" for declared floors.
+/// with "at least" for declared floors and the salary-dependent bound at the
+/// example salary ("at most" for FR).
 #let employer-rates-table(isos: none, region: none) = {
   let list = if isos == none { countries(region: region) } else { isos.map(country) }
   table(

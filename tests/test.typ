@@ -49,7 +49,34 @@
 #assert.eq(format-amount(1234567.891), "1,234,567.89")
 #assert.eq(format-amount(123, digits: 0), "123")
 
+// Salary-dependent bounds (0.1.1), as eorscope.com prints them.
+// ES: "at least" above the maximum base (EUR 61,214.40), a total at and below it.
+#assert.eq(country("ES").total_bound_salary_threshold_local, 61214.4)
+#assert.eq(country("ES").total_bound_salary_rule, "at_least_above")
+#assert(employer-rate-text("ES", salary: 70000).starts-with("at least "))
+#assert(employer-cost("ES", 70000).rate-is-floor)
+#assert(not employer-rate-text("ES", salary: 40000).starts-with("at "))
+#assert(not employer-cost("ES", 40000).rate-is-floor)
+#assert(not employer-rate-text("ES", salary: 61214.4).starts-with("at "))
+#assert.eq(employer-rate-text("ES"), "32.2%")
+// FR: "at most" under 3 x SMIC (EUR 65,629), a total at and above it.
+#assert.eq(country("FR").total_bound_salary_threshold_local, 65629.0)
+#assert.eq(country("FR").total_bound_salary_rule, "at_most_below")
+#assert(employer-rate-text("FR", salary: 44755).starts-with("at most "))
+#assert(employer-cost("FR", 44755).rate-is-ceiling)
+#assert(not employer-cost("FR", 44755).rate-is-floor)
+#assert(not employer-rate-text("FR", salary: 80000).starts-with("at "))
+#assert(not employer-cost("FR", 80000).rate-is-ceiling)
+#assert(not employer-rate-text("FR", salary: 65629).starts-with("at "))
+#assert.eq(employer-rate-text("FR"), "48.2%")
+// No other country carries a salary-dependent bound; declared floors are unchanged.
+#assert.eq(countries().filter(c => c.total_bound_salary_rule != none).map(c => c.iso), ("ES", "FR"))
+#assert(employer-cost("IN", 1).rate-is-floor)
+#assert(not employer-cost("DE", 60000).rate-is-ceiling)
+
 // Tables render.
+#employer-cost-table("ES", 70000)
+#employer-cost-table("FR", 44755)
 #employer-cost-table("DE", 60000)
 #employer-cost-table("IN", 1200000)
 #employer-rates-table(region: "Europe")

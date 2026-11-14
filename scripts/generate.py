@@ -55,6 +55,9 @@ def main(src):
             "fx_local_per_usd": num(r["fx_local_per_usd"]),
             "fx_date": r["fx_date"],
             "last_reviewed": r["last_reviewed"],
+            # salary-dependent bound (export of 2026-11-14 on): at_least_above | at_most_below, empty when none
+            "total_bound_salary_threshold_local": num(r["total_bound_salary_threshold_local"]),
+            "total_bound_salary_rule": r["total_bound_salary_rule"] or None,
             "assumptions": {},
             "lines": [],
         }
