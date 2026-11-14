@@ -1,6 +1,6 @@
 [package]
 name = "eorscope"
-version = "0.1.0"
+version = "0.1.1"
 entrypoint = "lib.typ"
 authors = ["Trésor Kaya <https://eorscope.com/about/>"]
 license = "MIT AND CC-BY-4.0"
